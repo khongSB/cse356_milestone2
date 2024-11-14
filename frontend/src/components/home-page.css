@@ -1,0 +1,29 @@
+.home-page {
+  padding: 20px;
+}
+
+.video-thumbnails {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns in each row */
+  gap: 20px; /* Space between items */
+}
+
+.video-thumbnail {
+  text-align: center;
+}
+
+.thumbnail-img {
+  width: 100%;
+  height: auto;
+  max-width: 200px; /* Control thumbnail size */
+  margin-bottom: 10px;
+}
+
+h3 {
+  font-size: 1.2rem;
+}
+
+p {
+  font-size: 1rem;
+  color: #555;
+}
