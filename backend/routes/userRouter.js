@@ -413,7 +413,9 @@ router.post("/api/logout", async (req, res) => {
         return res.status(500).json({ message: "Logout failed" });
       }
       console.log(`| [logged out]: ${username}`);
-      return res.status(200).json({ message: "Logged out successfully" });
+      return res
+        .status(200)
+        .json({ status: "OK", message: "Logged out successfully" });
     });
   } else {
     req.session.destroy((err) => {
@@ -423,7 +425,7 @@ router.post("/api/logout", async (req, res) => {
       console.log(`| [session destroyed]:`);
       return res
         .status(200)
-        .json({ message: "Session destroyed successfully" });
+        .json({ status: "OK", message: "Session destroyed successfully" });
     });
   }
 });

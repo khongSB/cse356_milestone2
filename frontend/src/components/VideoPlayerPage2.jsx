@@ -206,6 +206,7 @@ export const VideoPlayerPage = () => {
         console.log("navigating to login");
         navigate("/login");
       } else {
+        axios.post("/api/view", { id: initialVideoId });
         try {
           const response = await axios.post("/api/videos", {
             count: playersState.length + 3,
@@ -229,8 +230,10 @@ export const VideoPlayerPage = () => {
         "initial copy of player state: " + JSON.stringify(newPlayersState)
       );
       newPlayersState[currentPlayer].visible = false;
-      newPlayersState[currentPlayer].index =
-        newPlayersState.at(currentPlayer - 1).index + 1;
+      newPlayersState.at(currentPlayer - 1).index =
+        newPlayersState.at(
+          (currentPlayer - 2 + playersState.length) % playersState.length
+        ).index + 1;
       newPlayersState[(currentPlayer + 1) % playersState.length].visible = true;
       console.log(
         "| [Advancing video]:\n" +
@@ -255,6 +258,9 @@ export const VideoPlayerPage = () => {
         })
         .catch((error) => console.error("Error fetching more videos:", error));
     }
+    axios.post("/api/view", {
+      id: videos[playersState[(currentPlayer + 1) % playersState.length].index],
+    });
     playerRef.current[(currentPlayer + 1) % playersState.length].play();
     setPlaying(true);
     setCurrentPlayer((prev) => (prev + 1) % playersState.length);
@@ -269,8 +275,11 @@ export const VideoPlayerPage = () => {
         "initial copy of player state" + JSON.stringify(newPlayersState)
       );
       newPlayersState[currentPlayer].visible = false;
-      newPlayersState.at(currentPlayer - 1).index =
-        newPlayersState[currentPlayer].index - 1;
+      newPlayersState.at(
+        (currentPlayer - 2 + playersState.length) % playersState.length
+      ).index =
+        (newPlayersState.at(currentPlayer - 1).index - 1 + videos.length) %
+        videos.length;
       newPlayersState.at(currentPlayer - 1).visible = true;
       console.log(
         "| [Reversing video]:\n" +
@@ -280,6 +289,13 @@ export const VideoPlayerPage = () => {
           JSON.stringify(newPlayersState)
       );
       return newPlayersState;
+    });
+    axios.post("/api/view", {
+      id: videos[
+        playersState[
+          (currentPlayer - 1 + playersState.length) % playersState.length
+        ].index
+      ],
     });
     playerRef.current[
       (currentPlayer - 1 + playersState.length) % playersState.length
