@@ -1,15 +1,14 @@
 import React, { useEffect, useRef } from "react";
 import dashjs from "dashjs";
 
-export const DashPlayer = ({ videoUrl, onPlayerReady }) => {
+export const DashPlayer = ({ videoUrl, onPlayerReady, visible }) => {
   const playerRef = useRef(null);
 
   useEffect(() => {
-    console.log(videoUrl);
     // Initialize dash.js player when video URL is set
     if (videoUrl) {
       const player = dashjs.MediaPlayer().create();
-      player.initialize(playerRef.current, videoUrl, true);
+      player.initialize(playerRef.current, videoUrl, false);
 
       // Call the onPlayerReady callback
       if (onPlayerReady) {
@@ -23,5 +22,11 @@ export const DashPlayer = ({ videoUrl, onPlayerReady }) => {
     }
   }, [videoUrl]);
 
-  return <video ref={playerRef} controls></video>;
+  return (
+    <video
+      ref={playerRef}
+      controls
+      style={{ visibility: visible ? "visible" : "hidden" }}
+    ></video>
+  );
 };

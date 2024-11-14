@@ -24,6 +24,19 @@ const uploaded_video_table = require("../models/uploaded-video");
 
 const MEDIA_PATH = "/root/milestone2/media/processed-media";
 
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    // Generate a random index from 0 to i
+    const j = Math.floor(Math.random() * (i + 1));
+    // Swap elements array[i] and array[j]
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+
+//----------------------------------------------------------------------------
+
 router.post("/api/videos", (req, res) => {
   const count = req.body.count;
   const filePath = "/root/milestone2/media/m2.json";
@@ -34,7 +47,7 @@ router.post("/api/videos", (req, res) => {
   //console.log(Object.entries(videoData));
   //console.log(Object.entries(videoData).slice(0, count));
   // Slice the video entries to get only the requested number
-  const selectedVideos = Object.entries(videoData)
+  const selectedVideos = shuffleArray(Object.entries(videoData))
     .slice(0, count) // Get the first `count` entries from the videoData dictionary
     .map(([id, description]) => ({
       id: id,
@@ -47,6 +60,144 @@ router.post("/api/videos", (req, res) => {
   // console.log(selectedVideos.length);
   res.status(200).json({ status: "OK", videos: selectedVideos });
 });
+
+// const express = require("express");
+// const fs = require("fs");
+// const shuffleArray = require("lodash.shuffle"); // Assuming you have a shuffle function like lodash's shuffle
+// const UploadedVideo = require("./models/uploaded-video"); // Update with correct path
+// const User = require("./models/user"); // Update with correct path
+
+// async function getUserRatings(username) {
+//   const likedVideos = await UploadedVideo.find({ 'likes.userId': username });
+//   const ratings = {};
+//   likedVideos.forEach(video => {
+//     const likeEntry = video.likes.find(like => like.userId === username);
+//     if (likeEntry) {
+//       ratings[video.video_id] = likeEntry.value ? 1 : -1;
+//     }
+//   });
+//   return ratings;
+// }
+
+// async function getUserViews(username) {
+//   const viewedVideos = await UploadedVideo.find({ 'views.userId': username });
+//   return viewedVideos.map(video => video.video_id);
+// }
+
+// function computeCosineSimilarity(ratingsA, ratingsB) {
+//   const commonVideos = Object.keys(ratingsA).filter(videoId => videoId in ratingsB);
+//   if (commonVideos.length === 0) return 0;
+
+//   let dotProduct = 0;
+//   let magnitudeA = 0;
+//   let magnitudeB = 0;
+
+//   commonVideos.forEach(videoId => {
+//     const ratingA = ratingsA[videoId];
+//     const ratingB = ratingsB[videoId];
+//     dotProduct += ratingA * ratingB;
+//     magnitudeA += ratingA * ratingA;
+//     magnitudeB += ratingB * ratingB;
+//   });
+
+//   magnitudeA = Math.sqrt(magnitudeA);
+//   magnitudeB = Math.sqrt(magnitudeB);
+
+//   return magnitudeA === 0 || magnitudeB === 0 ? 0 : dotProduct / (magnitudeA * magnitudeB);
+// }
+
+// async function predictRatings(activeUserRatings, topUsers) {
+//   const predictedRatings = {};
+
+//   for (const { username, similarity } of topUsers) {
+//     const userRatings = await getUserRatings(username);
+//     for (const [videoId, rating] of Object.entries(userRatings)) {
+//       if (!(videoId in activeUserRatings)) {
+//         if (!(videoId in predictedRatings)) {
+//           predictedRatings[videoId] = { weightedSum: 0, sumOfWeights: 0 };
+//         }
+//         predictedRatings[videoId].weightedSum += similarity * rating;
+//         predictedRatings[videoId].sumOfWeights += Math.abs(similarity);
+//       }
+//     }
+//   }
+
+//   for (const videoId in predictedRatings) {
+//     const { weightedSum, sumOfWeights } = predictedRatings[videoId];
+//     predictedRatings[videoId] = sumOfWeights !== 0 ? (weightedSum / sumOfWeights) : 0;
+//   }
+
+//   return predictedRatings;
+// }
+
+// async function selectTopVideos(predictedRatings, activeUserViews, count) {
+//   const videoIds = Object.keys(predictedRatings);
+//   const unviewedVideoIds = videoIds.filter(videoId => !activeUserViews.includes(videoId));
+//   unviewedVideoIds.sort((a, b) => predictedRatings[b] - predictedRatings[a]);
+
+//   return unviewedVideoIds.slice(0, count);
+// }
+
+// async function formatVideosResponse(videoIds, activeUsername) {
+//   const videos = await UploadedVideo.find({ video_id: { $in: videoIds } });
+//   return videos.map(video => {
+//     const userLikeEntry = video.likes.find(like => like.userId === activeUsername);
+//     const liked = userLikeEntry ? (userLikeEntry.value === true) : null;
+//     const watched = video.views.some(view => view.userId === activeUsername);
+
+//     return {
+//       id: video.video_id,
+//       title: video.title,
+//       description: '', // Adjust if a description field is present
+//       watched,
+//       liked,
+//       likevalues: video.likes.filter(like => like.value === true).length,
+//     };
+//   });
+// }
+
+// router.post("/api/videos", async (req, res) => {
+//   const count = req.body.count;
+//   const activeUsername = req.session.username;
+//   const N = 5;
+
+//   if (!count) {
+//     return res.status(200).json({ status: "ERROR", error: true, message: "Missing count parameter" });
+//   }
+
+//   try {
+//     const activeUserRatings = await getUserRatings(activeUsername);
+//     const activeUserViews = await getUserViews(activeUsername);
+
+//     const otherUsers = await User.find({ username: { $ne: activeUsername } });
+//     const similarities = [];
+
+//     for (const user of otherUsers) {
+//       const otherUserRatings = await getUserRatings(user.username);
+//       const similarity = computeCosineSimilarity(activeUserRatings, otherUserRatings);
+//       if (similarity > 0) {
+//         similarities.push({ username: user.username, similarity });
+//       }
+//     }
+
+//     similarities.sort((a, b) => b.similarity - a.similarity);
+//     const topUsers = similarities.slice(0, N);
+
+//     const predictedRatings = await predictRatings(activeUserRatings, topUsers);
+//     const recommendedVideoIds = await selectTopVideos(predictedRatings, activeUserViews, count);
+//     const responseVideos = await formatVideosResponse(recommendedVideoIds, activeUsername);
+
+//     return res.status(200).json({ status: "OK", videos: responseVideos });
+//   } catch (e) {
+//     console.error("Error in /api/videos:", e);
+//     return res.status(500).json({ status: "ERROR", error: true, message: e.message });
+//   }
+// });
+
+
+
+
+//----------------------------------------------------------------------------
 
 router.get("/api/manifest/:id", (req, res) => {
   // Get the video ID from the request parameters

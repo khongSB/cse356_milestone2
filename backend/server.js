@@ -15,6 +15,13 @@ const mediaRouter = require("./routes/mediaRouter.js");
 mongoose.connect(mongoURI);
 const db = mongoose.connection;
 
+// const rateLimit = require("express-rate-limit");
+// const limiter = rateLimit({
+//   windowMs: 1 * 60 * 1000, // 1 minute
+//   max: 30, // limit each IP to 100 requests per windowMs
+// });
+// app.use(limiter);
+
 // Add X-CSE356 header
 app.use((req, res, next) => {
   res.header("X-CSE356", groupID);

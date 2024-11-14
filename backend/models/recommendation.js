@@ -1,19 +1,9 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
+const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
 const RecommendationSchema = new Schema({
-    user: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    videoIds: [{
-        type: String
-    }],
-    index: {
-        type: Number,
-        default: 0
-    }
-})
+  user_id: { type: String, required: true },            // ID of the user receiving recommendations
+  recommended_videos: [{ type: String, required: true }] // Array of recommended video IDs
+});
 
-module.exports = mongoose.model('Recommendation', RecommendationSchema);
+module.exports = mongoose.model("Recommendation", RecommendationSchema);
