@@ -1,0 +1,47 @@
+services:
+  data:
+    build: ./data
+    ports:
+      - "27017:27017"  # Expose MongoDB on port 27017
+    environment:
+      - MONGO_INITDB_DATABASE=CSE356
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt  # Mount the certs directory to access the SSL certificates
+      - ./nginx.conf:/root/milestone3/gateway/nginx.conf  # Correct the path for nginx.conf
+    environment:
+      - VIRTUAL_HOST=bubbleguppies.cse356.compas.cs.stonybrook.edu
+    depends_on:
+      - data  # Gateway depends on the data service
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt  # Shared volume for Certbot certificates
+      - ./nginx.conf:/root/milestone3/gateway/nginx.conf  # Correct the path for nginx.conf (use /etc/nginx/nginx.conf)
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    command: certbot certonly --webroot --webroot-path=/var/www/certbot --email billy.li.1@stonybrook.edu --agree-tos --no-eff-email --staging
+    depends_on:
+      - gateway  # Certbot must wait for gateway to be ready
+
+  # mailserver:
+  #   build: ./mailserver
+  #   ports:
+  #     - "25:25"
+  #     - "587:587"
+  #   dns:
+  #     - 8.8.8.8
+  #     - 8.8.4.4
+
+  # media:
+  #   build: ./media
+
+  app:
+    build: ./app
+    ports:
+      - "5200:5200"
