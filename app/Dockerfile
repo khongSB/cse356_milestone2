@@ -16,6 +16,7 @@ COPY ./backend ./backend
 COPY ./media/processed-media ./media/processed-media
 COPY ./media/m2.json ./media/m2.json
 COPY ./media/process_video.py ./media/process_video.py
+COPY ./initialize_video_table ./initialize_video_table
 
 # Install dependencies for both frontend and backend
 RUN cd /usr/src/app/frontend && npm install

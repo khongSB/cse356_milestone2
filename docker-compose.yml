@@ -41,7 +41,41 @@ services:
   # media:
   #   build: ./media
 
-  app:
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    ports:
+      - "5200:8080" # Expose HAProxy on port 8080
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro # Mount HAProxy config file
+    depends_on:
+      - app1
+      - app2
+      - app3
+      - app4
+      - app5
+      
+  app1:
     build: ./app
     ports:
-      - "5200:5200"
+      - "7000:5200"
+      
+  app2:
+    build: ./app
+    ports:
+      - "7100:5200"
+      
+  app3:
+    build: ./app
+    ports:
+      - "7200:5200"
+
+  app4:
+    build: ./app
+    ports:
+      - "7300:5200"
+
+  app5:
+    build: ./app
+    ports:
+      - "7400:5200"
