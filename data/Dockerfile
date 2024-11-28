@@ -6,5 +6,6 @@ ENV MONGO_INITDB_DATABASE=CSE356
 
 # Copy the initialization script into the container (might not work idk)
 COPY init-user.js /docker-entrypoint-initdb.d/
+COPY mongod.conf /etc/mongod.conf
 
 # MongoDB automatically runs scripts in /docker-entrypoint-initdb.d/ during startup
