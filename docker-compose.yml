@@ -108,3 +108,33 @@ services:
   #   build: ./app
   #   ports:
   #     - "7900:5200"
+
+  # app11:
+  #   build: ./app
+  #   ports:
+  #     - "8000:5200"
+
+  # app12:
+  #   build: ./app
+  #   ports:
+  #     - "8100:5200"
+
+  # app13:
+  #   build: ./app
+  #   ports:
+  #     - "8200:5200"
+
+  # app14:
+  #   build: ./app
+  #   ports:
+  #     - "8300:5200"
+
+  # app15:
+  #   build: ./app
+  #   ports:
+  #     - "8400:5200"
+
+  # app16:
+  #   build: ./app
+  #   ports:
+  #     - "8500:5200"
