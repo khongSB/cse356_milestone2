@@ -2,12 +2,12 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const router = express.Router();
-
+const Minio = require("minio");
 const multer = require("multer");
 // Configure multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    console.log('Uploading file to /usr/src/app/media'); // Add this line to check
+    console.log("Uploading file to /usr/src/app/media"); // Add this line to check
     cb(null, "/usr/src/app/media"); // Specify your directory here
   },
   filename: (req, file, cb) => {
@@ -26,15 +26,48 @@ const uploaded_video_table = require("../models/uploaded-video");
 const User = require("../models/user");
 const MEDIA_PATH = "/usr/src/app/media/processed-media"; //"*"
 
-function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    // Generate a random index from 0 to i
-    const j = Math.floor(Math.random() * (i + 1));
-    // Swap elements array[i] and array[j]
-    [array[i], array[j]] = [array[j], array[i]];
+// Configure MinIO Client
+const minioClient = new Minio.Client({
+  endPoint: "10.0.1.163",
+  port: 9000,
+  useSSL: false,
+  accessKey: "admin",
+  secretKey: "password",
+});
+
+// MinIO bucket name
+const BUCKET_NAME = "processed-media";
+
+// Ensure the bucket exists
+minioClient.bucketExists(BUCKET_NAME, (err, exists) => {
+  if (err) {
+    console.error("Error checking bucket:", err);
+    return;
   }
-  return array;
-}
+
+  if (exists) {
+    console.log(`Bucket "${BUCKET_NAME}" already exists.`);
+  } else {
+    console.log(`Bucket "${BUCKET_NAME}" does not exist. Creating now...`);
+    minioClient.makeBucket(BUCKET_NAME, "us-east-1", (err) => {
+      if (err) {
+        console.error("Error creating bucket:", err);
+      } else {
+        console.log(`Bucket "${BUCKET_NAME}" created successfully.`);
+      }
+    });
+  }
+});
+
+// function shuffleArray(array) {
+//   for (let i = array.length - 1; i > 0; i--) {
+//     // Generate a random index from 0 to i
+//     const j = Math.floor(Math.random() * (i + 1));
+//     // Swap elements array[i] and array[j]
+//     [array[i], array[j]] = [array[j], array[i]];
+//   }
+//   return array;
+// }
 
 // Load videos from m2.json
 const filePath = "/usr/src/app/media/m2.json"; //"*"
@@ -124,20 +157,21 @@ async function selectTopVideos(predictedRatings, activeUserViews, count) {
 
   // If more videos are needed, add some from m2.json
   let recommendedVideoIds = unviewedVideoIds.slice(0, count);
-  console.log("recommended videos: " + JSON.stringify(recommendedVideoIds));
 
   if (recommendedVideoIds.length < count) {
     const needed = count - recommendedVideoIds.length;
     const additionalVideoIds = Object.keys(videoData)
       .filter(
         (id) =>
-          !recommendedVideoIds.includes(id.replace(".mp4", "")) && !activeUserViews.includes(id.replace(".mp4", ""))
+          !recommendedVideoIds.includes(id.replace(".mp4", "")) &&
+          !activeUserViews.includes(id.replace(".mp4", ""))
       )
       .slice(0, needed);
 
     recommendedVideoIds = recommendedVideoIds.concat(additionalVideoIds);
   }
 
+  console.log("recommended videos: " + JSON.stringify(recommendedVideoIds));
   return recommendedVideoIds;
 }
 
@@ -175,13 +209,11 @@ async function formatVideosResponse(videoIds, activeUserId) {
 
 // Main recommendation endpoint
 router.post("/api/videos", async (req, res) => {
-  const {videoId} = req.body;
+  console.log("| [recommendation]: start");
+  const { videoId } = req.body;
   const count = req.body.count;
   const activeUserId = req.session.username;
-  const N = 5;
-  console.log("----------------------------------------")
-  console.log("videoId: " + videoId);
-  console.log("----------------------------------------")
+  const numTopUsersConsidered = 5;
 
   if (!count) {
     return res.status(200).json({
@@ -191,7 +223,11 @@ router.post("/api/videos", async (req, res) => {
     });
   }
 
+  console.log("| [recommendation]: count:" + count + " videoId:" + videoId);
+
   if (!videoId) {
+    console.log("| [recommendation]: old rec system");
+
     try {
       const activeUserRatings = await getUserRatings(activeUserId);
       const activeUserViews = await getUserViews(activeUserId);
@@ -213,9 +249,12 @@ router.post("/api/videos", async (req, res) => {
       }
 
       similarities.sort((a, b) => b.similarity - a.similarity);
-      const topUsers = similarities.slice(0, N);
+      const topUsers = similarities.slice(0, numTopUsersConsidered);
 
-      const predictedRatings = await predictRatings(activeUserRatings, topUsers);
+      const predictedRatings = await predictRatings(
+        activeUserRatings,
+        topUsers
+      );
       const recommendedVideoIds = await selectTopVideos(
         predictedRatings,
         activeUserViews,
@@ -235,11 +274,15 @@ router.post("/api/videos", async (req, res) => {
     }
   } else {
     try {
-      console.log("TESTING THE NEW RECOMMENDATION SYSTEM");
+      console.log("| [recommendation]: videoId:" + videoId + "new rec system");
 
       // Retrieve all interactions for the specified video
-      const interactionsForVideo = await interaction_table.find({ video_id: videoId });
-      const userIdsForVideo = interactionsForVideo.map((interaction) => interaction.user_id);
+      const interactionsForVideo = await interaction_table.find({
+        video_id: videoId,
+      });
+      const userIdsForVideo = interactionsForVideo.map(
+        (interaction) => interaction.user_id
+      );
 
       // Retrieve all interactions for these users
       const allInteractionsForUsers = await interaction_table.find({
@@ -259,7 +302,9 @@ router.post("/api/videos", async (req, res) => {
       const similarityScores = {};
       const targetVideoInteractions = videoInteractionMap[videoId] || [];
 
-      for (const [otherVideoId, interactions] of Object.entries(videoInteractionMap)) {
+      for (const [otherVideoId, interactions] of Object.entries(
+        videoInteractionMap
+      )) {
         if (otherVideoId === videoId) continue;
 
         // Compare interaction patterns between the target video and this video
@@ -276,7 +321,9 @@ router.post("/api/videos", async (req, res) => {
         );
 
         // Calculate Jaccard similarity for simplicity
-        const intersection = new Set([...targetLikes].filter((x) => otherLikes.has(x)));
+        const intersection = new Set(
+          [...targetLikes].filter((x) => otherLikes.has(x))
+        );
         const union = new Set([...targetLikes, ...otherLikes]);
         const similarity = union.size > 0 ? intersection.size / union.size : 0;
 
@@ -284,8 +331,9 @@ router.post("/api/videos", async (req, res) => {
       }
 
       // Sort videos by similarity score
-      const sortedSimilarVideos = Object.keys(similarityScores)
-        .sort((a, b) => similarityScores[b] - similarityScores[a]);
+      const sortedSimilarVideos = Object.keys(similarityScores).sort(
+        (a, b) => similarityScores[b] - similarityScores[a]
+      );
 
       // Check which videos are already watched by the user
       const activeUserViews = await getUserViews(req.session.username);
@@ -307,7 +355,9 @@ router.post("/api/videos", async (req, res) => {
           });
           const liked = likedInteraction ? likedInteraction.value : null;
 
-          const uploadedVideo = await uploaded_video_table.findOne({ video_id: videoId });
+          const uploadedVideo = await uploaded_video_table.findOne({
+            video_id: videoId,
+          });
           const title = uploadedVideo?.title || "Untitled";
           const description = uploadedVideo?.description || "No description";
 
@@ -327,10 +377,11 @@ router.post("/api/videos", async (req, res) => {
         })
       );
 
-      console.log("END OF TESTING THE NEW RECOMMENDATION SYSTEM");
+      console.log(
+        "| [recommendation]: new rec system return: " +
+          JSON.stringify(recommendedVideoIds)
+      );
       return res.status(200).json({ status: "OK", videos: formattedVideos });
-
-
     } catch (e) {
       console.error("Error in /api/videos:", e);
       return res
@@ -343,42 +394,109 @@ router.post("/api/videos", async (req, res) => {
 //----------------------------------------------------------------------------
 
 // Added bc stupid grading script
+// router.get("/media/:file", (req, res) => {
+//   res.sendFile(path.join(MEDIA_PATH, "manifests", req.params.file), (err) => {
+//     if (err) {
+//       console.error("Error sending file:", err);
+//       res.status(err.status).end();
+//     }
+//   });
+// });
 router.get("/media/:file", (req, res) => {
-  res.sendFile(path.join(MEDIA_PATH, "manifests", req.params.file), (err) => {
+  const fileName = req.params.file;
+  const manifestPath = `manifests/${fileName}`; // Construct the manifest file path in MinIO
+
+  // Use MinIO client to get the manifest file
+  minioClient.getObject(BUCKET_NAME, manifestPath, (err, stream) => {
     if (err) {
-      console.error("Error sending file:", err);
-      res.status(err.status).end();
+      console.error("Error retrieving manifest from MinIO:", err);
+      return res
+        .status(500)
+        .json({ status: "ERROR", message: "Error retrieving file from MinIO" });
     }
+
+    // Set appropriate headers for manifest file
+    stream.pipe(res); // Pipe the stream directly to the response
   });
 });
-router.get("/api/manifest/:id", (req, res) => {
-  // Get the video ID from the request parameters
+
+router.get("/api/manifest/:id", async (req, res) => {
+  // Get the video ID or file name from the request parameters
   const videoId = req.params.id;
-  const isMpdRequired = !videoId.includes(".");
-  const filepath = isMpdRequired ? `${videoId}.mpd` : videoId;
-  console.log("getting: " + videoId);
-  console.log("doing: " + filepath);
-  // Construct the path to the manifest file
-  const manifestPath = path.join(
-    MEDIA_PATH,
-    `/manifests/${filepath}`
-  );
 
-  // Send the manifest file as a response
-  res.sendFile(manifestPath, (err) => {
-    if (err) {
-      console.error("Error sending file:", err);
-      res.status(err.status).end();
+  // Determine if an .mpd manifest or a specific file is being requested
+  const isMpdRequired = !videoId.includes(".");
+  const fileName = isMpdRequired ? `${videoId}.mpd` : videoId;
+
+  // Construct the MinIO object path
+  const key = `manifests/${fileName}`;
+  console.log("Fetching manifest or segment from MinIO:", key);
+
+  try {
+    // Check if the requested object exists in MinIO
+    const exists = await minioClient.statObject(BUCKET_NAME, key);
+
+    if (exists) {
+      // Stream the file from MinIO to the response
+      minioClient.getObject(BUCKET_NAME, key, (err, stream) => {
+        if (err) {
+          console.error("Error streaming manifest/segment:", err);
+          res.status(500).json({ error: "Failed to fetch manifest/segment" });
+          return;
+        }
+
+        // Set appropriate headers based on file type
+        if (fileName.endsWith(".mpd")) {
+          res.setHeader("Content-Type", "application/dash+xml");
+        } else if (fileName.endsWith(".m4s")) {
+          res.setHeader("Content-Type", "video/mp4");
+        } else {
+          res.setHeader("Content-Type", "application/octet-stream");
+        }
+
+        // Pipe the stream to the response
+        stream.pipe(res);
+      });
     }
-  });
+  } catch (error) {
+    console.error("Error retrieving manifest or segment:", error);
+    res.status(404).json({ error: "Manifest or segment not found" });
+  }
 });
 
-router.get("/api/thumbnail/:id", (req, res) => {
+router.get("/api/thumbnail/:id", async (req, res) => {
+  // const fileName = req.params.id + ".jpg";
+  // const filePath = path.join(MEDIA_PATH, "thumbnails", fileName);
+  // console.log("sending: " + filePath);
+  // res.setHeader("Content-Type", "image/jpeg");
+  // res.sendFile(filePath);
   const fileName = req.params.id + ".jpg";
-  const filePath = path.join(MEDIA_PATH, "thumbnails", fileName);
-  console.log("sending: " + filePath);
-  res.setHeader('Content-Type', 'image/jpeg');
-  res.sendFile(filePath);
+  const key = `thumbnails/${fileName}`;
+
+  console.log("Fetching thumbnail from MinIO:", key);
+
+  try {
+    // Check if the thumbnail exists in MinIO
+    const exists = await minioClient.statObject(BUCKET_NAME, key);
+
+    if (exists) {
+      // Stream the file from MinIO
+      res.setHeader("Content-Type", "image/jpeg");
+      minioClient.getObject(BUCKET_NAME, key, (err, stream) => {
+        if (err) {
+          console.error("Error streaming thumbnail:", err);
+          res.status(500).json({ error: "Failed to fetch thumbnail" });
+          return;
+        }
+
+        // Pipe the stream to the response
+        stream.pipe(res);
+      });
+    }
+  } catch (error) {
+    console.error("Error retrieving thumbnail:", error);
+    res.status(404).json({ error: "Thumbnail not found" });
+  }
 });
 
 router.get("/play/:id", (req, res) => {
@@ -457,6 +575,32 @@ router.post("/api/upload", upload.single("mp4File"), async (req, res) => {
       if (code === 0) {
         console.log(`${title} processed!`);
         try {
+          const processedMediaPath = "/usr/src/app/media/processed-media";
+
+          // Paths to process
+          const manifestsPath = path.join(processedMediaPath, "manifests");
+          const thumbnailsPath = path.join(processedMediaPath, "thumbnails");
+
+          // Helper function to upload files filtered by video_id
+          const uploadFilteredFiles = async (dirPath, bucketDir) => {
+            const files = fs.readdirSync(dirPath).filter(
+              (file) => file.startsWith(video_id) // Only include files starting with the video_id
+            );
+
+            for (const file of files) {
+              const filePath = path.join(dirPath, file);
+              const key = `${bucketDir}/${file}`;
+              await minioClient.fPutObject(BUCKET_NAME, key, filePath);
+              console.log(`Uploaded ${bucketDir}: ${file}`);
+            }
+          };
+
+          // Upload filtered files from the manifests folder (includes segments)
+          await uploadFilteredFiles(manifestsPath, "manifests");
+
+          // Upload filtered thumbnail files
+          await uploadFilteredFiles(thumbnailsPath, "thumbnails");
+
           const result = await uploaded_video_table.updateOne(
             { user_id: user_id, video_id: video_id }, // Filter by user_id and video_id
             { $set: { status: "complete" } } // Update status to "completed"

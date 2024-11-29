@@ -15,12 +15,12 @@ const mediaRouter = require("./routes/mediaRouter.js");
 mongoose.connect(mongoURI);
 const db = mongoose.connection;
 
-const { exec } = require('child_process');
+const { exec } = require("child_process");
 const fs = require("fs");
 
 const uploaded_video_table = require("./models/uploaded-video");
 
-// Read the JSON file
+// Populate uploaded_video_table with existing m2.json videos
 fs.readFile("../media/m2.json", "utf8", (err, data) => {
   if (err) {
     console.error("Error reading the file:", err);
@@ -50,7 +50,7 @@ fs.readFile("../media/m2.json", "utf8", (err, data) => {
       console.error(`Error inserting ${video.title}:`, error);
     }
   });
-})
+});
 
 // const rateLimit = require("express-rate-limit");
 // const limiter = rateLimit({
@@ -113,8 +113,8 @@ app.use((req, res, next) => {
   next(); // Call next middleware
 });
 
-app.get('/health', (req, res) => {
-  res.status(200).send('OK'); // Return a 200 status code with a message
+app.get("/health", (req, res) => {
+  res.status(200).send("OK"); // Return a 200 status code with a message
 });
 
 // Add user functionality

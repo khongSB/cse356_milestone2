@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y \
 # Copy the frontend and backend directories into the container
 COPY ./frontend ./frontend
 COPY ./backend ./backend
-COPY ./media/processed-media ./media/processed-media
 COPY ./media/m2.json ./media/m2.json
 COPY ./media/process_video.py ./media/process_video.py
 COPY ./initialize_video_table ./initialize_video_table
